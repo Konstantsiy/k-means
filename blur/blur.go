@@ -43,42 +43,6 @@ func Gaussian(img image.Image, sigma float64) *image.RGBA {
 	return cp
 }
 
-func min(a, b int) int {
-	if a > b {
-		return b
-	}
-	return a
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-func gaussBlur_1(scl, tcl []uint8, w, h, r int) {
-	rs := int(math.Ceil(float64(r) * 2.57))
-	for i := 0; i < h; i++ {
-		for j := 0; j < w; j++ {
-			val := float64(0)
-			wsum := float64(0)
-			for iy := i - rs; iy < i+rs+1; iy++ {
-				for ix := j - rs; ix < j+rs+1; ix++ {
-					x := min(w-1, max(0, ix))
-					y := min(h-1, max(0, iy))
-
-					dsq := float64(ix-j)*float64(ix-j) + float64(iy-i)*float64(iy-i)
-					wght := math.Exp(-dsq/float64(2*r*r)) / math.Pi * 2 * float64(r*r)
-					val += float64(scl[y*w+x]) * wght
-					wsum += wght
-				}
-				tcl[i*w+j] = uint8(val/wsum + 0.5)
-			}
-		}
-	}
-}
-
 func boxesForGauss(sigma float64, n int) []int {
 	wIdeal := math.Sqrt((12 * sigma * sigma / float64(n)) + 1)
 	wl := int(math.Floor(wIdeal))
@@ -100,70 +64,6 @@ func boxesForGauss(sigma float64, n int) []int {
 	}
 
 	return sizes
-}
-
-func gaussBlur_2(scl, tcl []uint8, w, h int, r int) {
-	bxs := boxesForGauss(float64(r), 3)
-	boxBlur_2(scl, tcl, w, h, (bxs[0]-1)/2)
-	boxBlur_2(tcl, scl, w, h, (bxs[1]-1)/2)
-	boxBlur_2(scl, tcl, w, h, (bxs[2]-1)/2)
-}
-
-func boxBlur_2(scl, tcl []uint8, w, h, r int) {
-	for i := 0; i < h; i++ {
-		for j := 0; j < w; j++ {
-			var val float64
-			for iy := i - r; iy < i+r+1; iy++ {
-				for ix := j - r; ix < j+r+1; ix++ {
-					x := min(w-1, max(0, ix))
-					y := min(h-1, max(0, iy))
-					val += float64(scl[y*w+x])
-				}
-			}
-			tcl[i*w+j] = uint8(val / float64((r+r+1)*(r+r+1)))
-		}
-	}
-}
-
-func gaussBlur_3(scl, tcl []uint8, w, h int, r int) {
-	bxs := boxesForGauss(float64(r), 3)
-	boxBlur_3(scl, tcl, w, h, (bxs[0]-1)/2)
-	boxBlur_3(tcl, scl, w, h, (bxs[1]-1)/2)
-	boxBlur_3(scl, tcl, w, h, (bxs[2]-1)/2)
-}
-
-func boxBlur_3(scl, tcl []uint8, w, h, r int) {
-	for i := 0; i < len(scl); i++ {
-		tcl[i] = scl[i]
-	}
-	boxBlurH_3(tcl, scl, w, h, r)
-	boxBlurT_3(scl, tcl, w, h, r)
-}
-
-func boxBlurH_3(scl, tcl []uint8, w, h, r int) {
-	for i := 0; i < h; i++ {
-		for j := 0; j < w; j++ {
-			var val float64
-			for ix := j - r; ix < j+r+1; ix++ {
-				x := min(w-1, max(0, ix))
-				val += float64(scl[i*w+x])
-			}
-			tcl[i*w+j] = uint8(val / float64(r+r+1))
-		}
-	}
-}
-
-func boxBlurT_3(scl, tcl []uint8, w, h, r int) {
-	for i := 0; i < h; i++ {
-		for j := 0; j < w; j++ {
-			var val float64
-			for iy := i - r; iy < i+r+1; iy++ {
-				y := min(h-1, max(0, iy))
-				val += float64(scl[y*w+j])
-			}
-			tcl[i*w+j] = uint8(val / float64(r+r+1))
-		}
-	}
 }
 
 func gaussBlur_4(scl, tcl []uint8, w, h, r int) {

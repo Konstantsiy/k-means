@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"github.com/Konstantsiy/kmeans/characteristic"
 	"github.com/sirupsen/logrus"
 	"math"
 	"math/rand"
@@ -84,4 +85,12 @@ func RunKMeans(dataset []Point, k int) []Cluster {
 		}
 	}
 	return clusters
+}
+
+func PrepareDataset(objectsChars []characteristic.ObjectCharacteristic) []Point {
+	var dataset []Point
+	for _, o_ch := range objectsChars {
+		dataset = append(dataset, Point{float64(o_ch.Ch.Square), float64(o_ch.Ch.Perimeter)})
+	}
+	return dataset
 }

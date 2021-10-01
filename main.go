@@ -59,10 +59,7 @@ func main() {
 		fmt.Println("--------------------")
 	}
 
-	var dataset []cluster.Point
-	for _, o_ch := range obj_chars {
-		dataset = append(dataset, cluster.Point{float64(o_ch.Ch.Square), float64(o_ch.Ch.Perimeter)})
-	}
+	dataset := cluster.PrepareDataset(obj_chars)
 
 	clusters := cluster.RunKMeans(dataset, k)
 

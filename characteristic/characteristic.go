@@ -1,14 +1,19 @@
 package characteristic
 
 import (
+	"github.com/Konstantsiy/kmeans/binarization"
 	"image"
-	"kmeans-test/binarization"
 	"math"
 )
 
 type Characteristic struct {
 	Square int
 	Perimeter int
+}
+
+type ObjectCharacteristic struct {
+	Ch       Characteristic
+	ObjectID byte
 }
 
 type RGB struct {

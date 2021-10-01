@@ -1,278 +1,264 @@
 package blur
 
 import (
+	"github.com/Konstantsiy/kmeans/util"
 	"image"
 	"image/color"
-	"kmeans-test/util"
 	"math"
-	"runtime"
-	"sync"
 )
 
-func GaussianBlur(src image.Image, r float64) *image.RGBA {
-	clone := util.AsRGBA(src)
-	dst := util.AsRGBA(src)
+func Gaussian(img image.Image, sigma float64) *image.RGBA {
+	cp := util.AsRGBA(img)
 
-	bxs := BoxesForGauss(r, 3)
+	rscl := make([]uint8, cp.Rect.Dx()*cp.Rect.Dy())
+	gscl := make([]uint8, cp.Rect.Dx()*cp.Rect.Dy())
+	bscl := make([]uint8, cp.Rect.Dx()*cp.Rect.Dy())
 
-	for _, b := range bxs {
-		boxBlur(clone, dst, (b-1)/2)
+	i := 0
+	for y := 0; y < cp.Rect.Dy(); y++ {
+		for x := 0; x < cp.Rect.Dx(); x++ {
+			r, g, b, _ := cp.At(x, y).RGBA()
+			rscl[i] = uint8(r)
+			gscl[i] = uint8(g)
+			bscl[i] = uint8(b)
+			i++
+		}
 	}
 
-	return dst
-}
+	rtcl := make([]uint8, len(rscl))
+	gtcl := make([]uint8, len(rscl))
+	btcl := make([]uint8, len(rscl))
+	gaussBlur_4(rscl, rtcl, cp.Rect.Dx(), cp.Rect.Dy(), int(sigma))
+	gaussBlur_4(gscl, gtcl, cp.Rect.Dx(), cp.Rect.Dy(), int(sigma))
+	gaussBlur_4(bscl, btcl, cp.Rect.Dx(), cp.Rect.Dy(), int(sigma))
 
-type Direction int
-
-const (
-	dirX Direction = iota
-	dirY
-)
-
-func boxBlur(src, dst *image.RGBA, r int) {
-	height := src.Bounds().Max.Y - src.Bounds().Min.Y
-	width := src.Bounds().Max.X - src.Bounds().Min.X
-
-	boxBlurParallel(dirX, height, dst, src, r)
-	boxBlurParallel(dirY, width, src, dst, r)
-}
-
-func boxBlurParallel(d Direction, length int, src, dst *image.RGBA, r int) {
-	procs := runtime.NumCPU()
-	ps := length / procs
-
-	var wg sync.WaitGroup
-	for length > 0 {
-		start := length - ps
-		if start < 0 {
-			start = 0
+	i = 0
+	for y := 0; y < cp.Rect.Dy(); y++ {
+		for x := 0; x < cp.Rect.Dx(); x++ {
+			cp.Set(x, y, color.RGBA{rtcl[i], gtcl[i], btcl[i], 255})
+			i++
 		}
-		end := length
+	}
 
-		length -= ps
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			switch d {
-			case dirX:
-				boxBlurHorizontal(src, dst, src.Bounds().Min.Y+start, src.Bounds().Min.Y+end, r)
-			case dirY:
-				boxBlurTotal(src, dst, src.Bounds().Min.X+start, src.Bounds().Min.X+end, r)
+	return cp
+}
+
+func min(a, b int) int {
+	if a > b {
+		return b
+	}
+	return a
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func gaussBlur_1(scl, tcl []uint8, w, h, r int) {
+	rs := int(math.Ceil(float64(r) * 2.57))
+	for i := 0; i < h; i++ {
+		for j := 0; j < w; j++ {
+			val := float64(0)
+			wsum := float64(0)
+			for iy := i - rs; iy < i+rs+1; iy++ {
+				for ix := j - rs; ix < j+rs+1; ix++ {
+					x := min(w-1, max(0, ix))
+					y := min(h-1, max(0, iy))
+
+					dsq := float64(ix-j)*float64(ix-j) + float64(iy-i)*float64(iy-i)
+					wght := math.Exp(-dsq/float64(2*r*r)) / math.Pi * 2 * float64(r*r)
+					val += float64(scl[y*w+x]) * wght
+					wsum += wght
+				}
+				tcl[i*w+j] = uint8(val/wsum + 0.5)
 			}
-		}()
-	}
-
-	wg.Wait()
-}
-
-func boxBlurHorizontal(src, dst *image.RGBA, start, end, r int) {
-	fr := float64(r)
-	iarr := 1.0 / (fr + fr + 1.0)
-
-	for i := start; i < end; i++ {
-		ti := src.Bounds().Min.X
-		li := ti
-		ri := ti + r
-
-		fvpos := src.PixOffset(ti, i)
-		lvpos := src.PixOffset(src.Bounds().Max.X-1, i)
-
-		fvr := int(src.Pix[fvpos+0])
-		fvg := int(src.Pix[fvpos+1])
-		fvb := int(src.Pix[fvpos+2])
-		fva := int(src.Pix[fvpos+3])
-
-		val_r := fvr * (r + 1)
-		val_g := fvg * (r + 1)
-		val_b := fvb * (r + 1)
-		val_a := fva * (r + 1)
-
-		for j := 0; j < r; j++ {
-			pos := src.PixOffset(ti+j, i)
-			val_r += int(src.Pix[pos+0])
-			val_g += int(src.Pix[pos+1])
-			val_b += int(src.Pix[pos+2])
-			val_a += int(src.Pix[pos+3])
-		}
-
-		for j := 0; j <= r; j++ {
-			pos := src.PixOffset(ri, i)
-			ri++
-
-			val_r += int(src.Pix[pos+0]) - fvr
-			val_g += int(src.Pix[pos+1]) - fvg
-			val_b += int(src.Pix[pos+2]) - fvb
-			val_a += int(src.Pix[pos+3]) - fva
-
-			_r := uint8(math.Round(float64(val_r) * iarr))
-			_g := uint8(math.Round(float64(val_g) * iarr))
-			_b := uint8(math.Round(float64(val_b) * iarr))
-			_a := uint8(math.Round(float64(val_a) * iarr))
-
-			dst.SetRGBA(ti, i, color.RGBA{_r, _g, _b, _a})
-			ti++
-		}
-
-		for j := r + 1; j < src.Bounds().Max.X-r; j++ {
-			ripos := src.PixOffset(ri, i)
-			ri++
-
-			lipos := src.PixOffset(li, i)
-			li++
-
-			val_r += int(src.Pix[ripos+0]) - int(src.Pix[lipos+0])
-			val_g += int(src.Pix[ripos+1]) - int(src.Pix[lipos+1])
-			val_b += int(src.Pix[ripos+2]) - int(src.Pix[lipos+2])
-			val_a += int(src.Pix[ripos+3]) - int(src.Pix[lipos+3])
-
-			_r := uint8(math.Round(float64(val_r) * iarr))
-			_g := uint8(math.Round(float64(val_g) * iarr))
-			_b := uint8(math.Round(float64(val_b) * iarr))
-			_a := uint8(math.Round(float64(val_a) * iarr))
-
-			dst.SetRGBA(ti, i, color.RGBA{_r, _g, _b, _a})
-			ti++
-		}
-
-		for j := src.Bounds().Max.X - r; j < src.Bounds().Max.X; j++ {
-			pos := src.PixOffset(li, i)
-			li++
-
-			val_r += int(src.Pix[lvpos+0]) - int(src.Pix[pos+0])
-			val_g += int(src.Pix[lvpos+1]) - int(src.Pix[pos+1])
-			val_b += int(src.Pix[lvpos+2]) - int(src.Pix[pos+2])
-			val_a += int(src.Pix[lvpos+3]) - int(src.Pix[pos+3])
-
-			_r := uint8(math.Round(float64(val_r) * iarr))
-			_g := uint8(math.Round(float64(val_g) * iarr))
-			_b := uint8(math.Round(float64(val_b) * iarr))
-			_a := uint8(math.Round(float64(val_a) * iarr))
-
-			dst.SetRGBA(ti, i, color.RGBA{_r, _g, _b, _a})
-			ti++
 		}
 	}
 }
 
-func boxBlurTotal(src, dst *image.RGBA, start, end, r int) {
-	fr := float64(r)
-	iarr := 1.0 / (fr + fr + 1.0)
-
-	for i := start; i < end; i++ {
-		ti := src.Bounds().Min.Y
-		li := ti
-		ri := ti + r
-
-		fvpos := src.PixOffset(i, ti)
-		lvpos := src.PixOffset(i, src.Bounds().Max.Y-1)
-
-		fvr := int(src.Pix[fvpos+0])
-		fvg := int(src.Pix[fvpos+1])
-		fvb := int(src.Pix[fvpos+2])
-		fva := int(src.Pix[fvpos+3])
-
-		val_r := fvr * (r + 1)
-		val_g := fvg * (r + 1)
-		val_b := fvb * (r + 1)
-		val_a := fva * (r + 1)
-
-		for j := 0; j < r; j++ {
-			pos := src.PixOffset(i, ti+j)
-			val_r += int(src.Pix[pos+0])
-			val_g += int(src.Pix[pos+1])
-			val_b += int(src.Pix[pos+2])
-			val_a += int(src.Pix[pos+3])
-		}
-
-		for j := 0; j <= r; j++ {
-			pos := src.PixOffset(i, ri)
-			ri++
-
-			val_r += int(src.Pix[pos+0]) - fvr
-			val_g += int(src.Pix[pos+1]) - fvg
-			val_b += int(src.Pix[pos+2]) - fvb
-			val_a += int(src.Pix[pos+3]) - fva
-
-			_r := uint8(math.Round(float64(val_r) * iarr))
-			_g := uint8(math.Round(float64(val_g) * iarr))
-			_b := uint8(math.Round(float64(val_b) * iarr))
-			_a := uint8(math.Round(float64(val_a) * iarr))
-
-			dst.SetRGBA(ti, i, color.RGBA{_r, _g, _b, _a})
-			ti++
-		}
-
-		for j := r + 1; j < src.Bounds().Max.Y-r; j++ {
-			ripos := src.PixOffset(i, ri)
-			ri++
-
-			lipos := src.PixOffset(i, li)
-			li++
-
-			val_r += int(src.Pix[ripos+0]) - int(src.Pix[lipos+0])
-			val_g += int(src.Pix[ripos+1]) - int(src.Pix[lipos+1])
-			val_b += int(src.Pix[ripos+2]) - int(src.Pix[lipos+2])
-			val_a += int(src.Pix[ripos+3]) - int(src.Pix[lipos+3])
-
-			_r := uint8(math.Round(float64(val_r) * iarr))
-			_g := uint8(math.Round(float64(val_g) * iarr))
-			_b := uint8(math.Round(float64(val_b) * iarr))
-			_a := uint8(math.Round(float64(val_a) * iarr))
-
-			dst.SetRGBA(ti, i, color.RGBA{_r, _g, _b, _a})
-			ti++
-		}
-
-		for j := src.Bounds().Max.Y - r; j < src.Bounds().Max.Y; j++ {
-			pos := src.PixOffset(i, li)
-			li++
-
-			val_r += int(src.Pix[lvpos+0]) - int(src.Pix[pos+0])
-			val_g += int(src.Pix[lvpos+1]) - int(src.Pix[pos+1])
-			val_b += int(src.Pix[lvpos+2]) - int(src.Pix[pos+2])
-			val_a += int(src.Pix[lvpos+3]) - int(src.Pix[pos+3])
-
-			_r := uint8(math.Round(float64(val_r) * iarr))
-			_g := uint8(math.Round(float64(val_g) * iarr))
-			_b := uint8(math.Round(float64(val_b) * iarr))
-			_a := uint8(math.Round(float64(val_a) * iarr))
-
-			dst.SetRGBA(ti, i, color.RGBA{_r, _g, _b, _a})
-			ti++
-		}
-	}
-}
-
-// BoxesForGauss
-func BoxesForGauss(sigma float64, n int) []int { // standard deviation, number of boxes
-	nf := float64(n)
-
-	wIdeal := math.Sqrt(12.0*sigma*sigma/nf + 1.0)
+func boxesForGauss(sigma float64, n int) []int {
+	wIdeal := math.Sqrt((12 * sigma * sigma / float64(n)) + 1)
 	wl := int(math.Floor(wIdeal))
 	if wl%2 == 0 {
 		wl--
 	}
-	wu := wl + 2
 
-	mIdeal := (12.0*sigma*sigma - float64(n*wl*wl+4*n*wl+3*n)) / float64(-4*wl-4)
-	m := math.Round(mIdeal)
+	mIdeal := (12*sigma*sigma - float64(n*wl*wl+4*n*wl+3*n)) / float64(-4*wl-4)
+	// Round to the nearest number
+	m := int(mIdeal + 0.5)
 
 	sizes := make([]int, n)
 	for i := 0; i < n; i++ {
-		if float64(i) < m {
+		if i < int(m) {
 			sizes[i] = wl
 		} else {
-			sizes[i] = wu
+			sizes[i] = wl + 2
 		}
 	}
 
 	return sizes
 }
 
-//// CloneToRGBA
-//func CloneToRGBA(src image.Image) *image.RGBA {
-//	b := src.Bounds()
-//	dst := image.NewRGBA(b)
-//	draw.Draw(dst, b, src, b.Min, draw.Src)
-//	return dst
-//}
+func gaussBlur_2(scl, tcl []uint8, w, h int, r int) {
+	bxs := boxesForGauss(float64(r), 3)
+	boxBlur_2(scl, tcl, w, h, (bxs[0]-1)/2)
+	boxBlur_2(tcl, scl, w, h, (bxs[1]-1)/2)
+	boxBlur_2(scl, tcl, w, h, (bxs[2]-1)/2)
+}
+
+func boxBlur_2(scl, tcl []uint8, w, h, r int) {
+	for i := 0; i < h; i++ {
+		for j := 0; j < w; j++ {
+			var val float64
+			for iy := i - r; iy < i+r+1; iy++ {
+				for ix := j - r; ix < j+r+1; ix++ {
+					x := min(w-1, max(0, ix))
+					y := min(h-1, max(0, iy))
+					val += float64(scl[y*w+x])
+				}
+			}
+			tcl[i*w+j] = uint8(val / float64((r+r+1)*(r+r+1)))
+		}
+	}
+}
+
+func gaussBlur_3(scl, tcl []uint8, w, h int, r int) {
+	bxs := boxesForGauss(float64(r), 3)
+	boxBlur_3(scl, tcl, w, h, (bxs[0]-1)/2)
+	boxBlur_3(tcl, scl, w, h, (bxs[1]-1)/2)
+	boxBlur_3(scl, tcl, w, h, (bxs[2]-1)/2)
+}
+
+func boxBlur_3(scl, tcl []uint8, w, h, r int) {
+	for i := 0; i < len(scl); i++ {
+		tcl[i] = scl[i]
+	}
+	boxBlurH_3(tcl, scl, w, h, r)
+	boxBlurT_3(scl, tcl, w, h, r)
+}
+
+func boxBlurH_3(scl, tcl []uint8, w, h, r int) {
+	for i := 0; i < h; i++ {
+		for j := 0; j < w; j++ {
+			var val float64
+			for ix := j - r; ix < j+r+1; ix++ {
+				x := min(w-1, max(0, ix))
+				val += float64(scl[i*w+x])
+			}
+			tcl[i*w+j] = uint8(val / float64(r+r+1))
+		}
+	}
+}
+
+func boxBlurT_3(scl, tcl []uint8, w, h, r int) {
+	for i := 0; i < h; i++ {
+		for j := 0; j < w; j++ {
+			var val float64
+			for iy := i - r; iy < i+r+1; iy++ {
+				y := min(h-1, max(0, iy))
+				val += float64(scl[y*w+j])
+			}
+			tcl[i*w+j] = uint8(val / float64(r+r+1))
+		}
+	}
+}
+
+func gaussBlur_4(scl, tcl []uint8, w, h, r int) {
+	bxs := boxesForGauss(float64(r), 3)
+	boxBlur_4(scl, tcl, w, h, (bxs[0]-1)/2)
+	boxBlur_4(tcl, scl, w, h, (bxs[1]-1)/2)
+	boxBlur_4(scl, tcl, w, h, (bxs[2]-1)/2)
+}
+
+func boxBlur_4(scl, tcl []uint8, w, h, r int) {
+	for i := 0; i < len(scl); i++ {
+		tcl[i] = scl[i]
+	}
+	boxBlurH_4(tcl, scl, w, h, r) // Horizontal blur
+	boxBlurT_4(scl, tcl, w, h, r) // Total blur
+}
+
+func boxBlurH_4(scl, tcl []uint8, w, h, r int) {
+	var iarr float64 = 1 / float64(r+r+1)
+	for i := 0; i < h; i++ {
+		ti := i * w
+		li := ti
+		ri := ti + r
+
+		fv := int(scl[ti])
+		lv := int(scl[ti+w-1])
+
+		val := (r + 1) * fv
+
+		for j := 0; j < r; j++ {
+			val += int(scl[ti+j])
+		}
+
+		for j := 0; j <= r; j++ {
+			ri++
+			val += int(scl[ri-1]) - fv
+			ti++
+			tcl[ti-1] = uint8(float64(val)*iarr + 0.5)
+		}
+
+		for j := r + 1; j < w-r; j++ {
+			ri++
+			li++
+			val += int(scl[ri-1]) - int(scl[li-1])
+			ti++
+			tcl[ti-1] = uint8(float64(val)*iarr + 0.5)
+		}
+
+		for j := w - r; j < w; j++ {
+			li++
+			val += lv - int(scl[li-1])
+			ti++
+			tcl[ti-1] = uint8(float64(val)*iarr + 0.5)
+		}
+	}
+}
+
+func boxBlurT_4(scl, tcl []uint8, w, h, r int) {
+	var iarr float64 = 1 / float64(r+r+1)
+	for i := 0; i < w; i++ {
+		ti := i
+		li := ti
+		ri := ti + r*w
+
+		fv := int(scl[ti])
+		lv := int(scl[ti+w*(h-1)])
+		val := (r + 1) * fv
+
+		for j := 0; j < r; j++ {
+			val += int(scl[ti+j*w])
+		}
+
+		for j := 0; j <= r; j++ {
+			val += int(scl[ri]) - fv
+			tcl[ti] = uint8(float64(val)*iarr + 0.5)
+			ri += w
+			ti += w
+		}
+
+		for j := r + 1; j < h-r; j++ {
+			val += int(scl[ri]) - int(scl[li])
+			tcl[ti] = uint8(float64(val)*iarr + 0.5)
+			li += w
+			ri += w
+			ti += w
+		}
+
+		for j := h - r; j < h; j++ {
+			val += lv - int(scl[li])
+			tcl[ti] = uint8(float64(val)*iarr + 0.5)
+			li += w
+			ti += w
+		}
+	}
+}
+
+
+

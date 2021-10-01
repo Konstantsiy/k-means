@@ -1,9 +1,9 @@
 package binarization
 
 import (
+	"github.com/Konstantsiy/kmeans/util"
 	"image"
 	"image/color"
-	"kmeans-test/util"
 )
 
 type Coordinate struct {

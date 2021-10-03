@@ -48,7 +48,12 @@ func main() {
 
 		obj_chars = append(obj_chars, characteristic.ObjectCharacteristic{
 			ObjectID: k,
-			Ch: characteristic.Characteristic{Square: s, Perimeter: p},
+			Ch: characteristic.Characteristic{
+				Square: s,
+				Perimeter: p,
+				Compact: c,
+				Elongation: e,
+			},
 		})
 
 		ph := characteristic.CalcPhotometrics(img, v)
@@ -64,15 +69,17 @@ func main() {
 	clusters := cluster.RunKMeans(dataset, k)
 
 	for i, cl := range clusters { // отображение координат центров кластеров
-		fmt.Printf("%d centered at (%.f, %.f)\n", i+1, cl.Center.X, cl.Center.Y)
+		fmt.Printf("%d centered at (%.f, %.f)\n", i+1, cl.Center.Square, cl.Center.Perimeter)
 	}
 
+	// привязываем объект к соответствующему кластеру, чтобы раскрасить все точки,
+	// принадлежащие данному объекту, в уникальный цвет
 	objects_colors := make(map[byte]int)
 	for _, ob_ch := range obj_chars {
 		for cl_i, cl := range clusters {
 			for _, point := range cl.Points {
-				sq := int(math.Round(point.X))
-				per := int(math.Round(point.Y))
+				sq := int(math.Round(point.Square))
+				per := int(math.Round(point.Perimeter))
 				if ob_ch.Ch.Square == sq && ob_ch.Ch.Perimeter == per {
 					objects_colors[ob_ch.ObjectID] = cl_i+1
 					break
@@ -81,6 +88,7 @@ func main() {
 		}
 	}
 
+	// заполнение бинарной матрицы, исходя из раскраски объектов
 	for obj_k, cors := range objects {
 		if color_i, ok := objects_colors[obj_k]; ok {
 			for _, c := range cors {
@@ -92,3 +100,59 @@ func main() {
 	imgRes := binarization.BinMapToImage(bm, *imgBin2)
 	util.SavePNG(imgRes, path, filename, "bin_3")
 }
+
+
+//func printVal(wg *sync.WaitGroup, j int) {
+//	defer wg.Done()
+//	fmt.Print(j)
+//}
+//
+//func group() {
+//	var wg sync.WaitGroup
+//	for i := 0; i < 5; i++ {
+//		for j := 1; j <= 3; j++ {
+//			wg.Add(1)
+//			go printVal(&wg, j)
+//		}
+//		wg.Wait()
+//		fmt.Println()
+//	}
+//}
+//
+//func main() {
+//	group()
+//}
+
+//func startJob(i int) {
+//	fmt.Println(i)
+//}
+//
+//func worker(jobs chan int, ch chan struct{}, wg *sync.WaitGroup) {
+//	for j := range jobs {
+//		ch <- struct{}{}
+//		startJob(j)
+//		time.Sleep(500*time.Millisecond)
+//		<-ch
+//		wg.Done()
+//	}
+//}
+//
+//func jobs(count int) {
+//	ch := make(chan struct{}, 5)
+//	jobs := make(chan int, count)
+//	var wg sync.WaitGroup
+//
+//	go worker(jobs, ch, &wg)
+//
+//	for i := 0; i < count; i++ {
+//		go func(job int) {
+//			wg.Add(1)
+//			jobs <- job
+//		}(i)
+//	}
+//	wg.Wait()
+//}
+//
+//func main() {
+//	jobs(20)
+//}

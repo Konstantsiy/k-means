@@ -28,6 +28,7 @@ func Gaussian(img image.Image, sigma float64) *image.RGBA {
 	rtcl := make([]uint8, len(rscl))
 	gtcl := make([]uint8, len(rscl))
 	btcl := make([]uint8, len(rscl))
+
 	gaussBlur_4(rscl, rtcl, cp.Rect.Dx(), cp.Rect.Dy(), int(sigma))
 	gaussBlur_4(gscl, gtcl, cp.Rect.Dx(), cp.Rect.Dy(), int(sigma))
 	gaussBlur_4(bscl, btcl, cp.Rect.Dx(), cp.Rect.Dy(), int(sigma))
@@ -51,7 +52,6 @@ func boxesForGauss(sigma float64, n int) []int {
 	}
 
 	mIdeal := (12*sigma*sigma - float64(n*wl*wl+4*n*wl+3*n)) / float64(-4*wl-4)
-	// Round to the nearest number
 	m := int(mIdeal + 0.5)
 
 	sizes := make([]int, n)
@@ -67,7 +67,8 @@ func boxesForGauss(sigma float64, n int) []int {
 }
 
 func gaussBlur_4(scl, tcl []uint8, w, h, r int) {
-	bxs := boxesForGauss(float64(r), 3)
+	bxs := boxesForGauss(float64(r), 3) // получаем массив (окно) преобразования
+	// используем его для вертикального и горизонтального размытия RBG-составляющих
 	boxBlur_4(scl, tcl, w, h, (bxs[0]-1)/2)
 	boxBlur_4(tcl, scl, w, h, (bxs[1]-1)/2)
 	boxBlur_4(scl, tcl, w, h, (bxs[2]-1)/2)
@@ -77,12 +78,12 @@ func boxBlur_4(scl, tcl []uint8, w, h, r int) {
 	for i := 0; i < len(scl); i++ {
 		tcl[i] = scl[i]
 	}
-	boxBlurH_4(tcl, scl, w, h, r) // Horizontal blur
-	boxBlurT_4(scl, tcl, w, h, r) // Total blur
+	boxBlurH_4(tcl, scl, w, h, r) // горизонтальное размытие
+	boxBlurT_4(scl, tcl, w, h, r) // вертикальное размытие
 }
 
 func boxBlurH_4(scl, tcl []uint8, w, h, r int) {
-	var iarr float64 = 1 / float64(r+r+1)
+	var iarr = 1 / float64(r+r+1)
 	for i := 0; i < h; i++ {
 		ti := i * w
 		li := ti
@@ -122,7 +123,7 @@ func boxBlurH_4(scl, tcl []uint8, w, h, r int) {
 }
 
 func boxBlurT_4(scl, tcl []uint8, w, h, r int) {
-	var iarr float64 = 1 / float64(r+r+1)
+	var iarr = 1 / float64(r+r+1)
 	for i := 0; i < w; i++ {
 		ti := i
 		li := ti

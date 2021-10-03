@@ -9,6 +9,8 @@ import (
 type Characteristic struct {
 	Square int
 	Perimeter int
+	Compact float64
+	Elongation float64
 }
 
 type ObjectCharacteristic struct {

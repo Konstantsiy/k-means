@@ -9,12 +9,18 @@ import (
 )
 
 type Point struct {
-	X float64
-	Y float64
+	Square     float64
+	Perimeter  float64
+	Compact    float64
+	Elongation float64
 }
 
 func (p Point) distance(p2 Point) float64 {
-	return math.Sqrt(math.Pow(p.X-p2.X, 2) + math.Pow(p.Y-p2.Y, 2))
+	return math.Sqrt(
+		math.Pow(p.Square-p2.Square, 2) +
+			math.Pow(p.Perimeter-p2.Perimeter, 2) +
+			math.Pow(p.Compact-p2.Compact, 2) +
+			math.Pow(p.Elongation-p2.Elongation, 2))
 }
 
 type Cluster struct {
@@ -23,15 +29,23 @@ type Cluster struct {
 }
 
 func (cluster *Cluster) repositionCenter() {
-	var x, y float64
-	var clusterCount = len(cluster.Points)
+	var squaresSum, perimetersSum, compactsSum, elongationsSum float64
+	var count = len(cluster.Points)
 
-	for i := 0; i < clusterCount; i++ {
-		x += cluster.Points[i].X
-		y += cluster.Points[i].Y
+	for i := 0; i < count; i++ {
+		squaresSum += cluster.Points[i].Square
+		perimetersSum += cluster.Points[i].Perimeter
+		compactsSum += cluster.Points[i].Compact
+		elongationsSum += cluster.Points[i].Elongation
 	}
+
 	cluster.Points = []Point{}
-	cluster.Center = Point{x / float64(clusterCount), y / float64(clusterCount)}
+	cluster.Center = Point{
+		squaresSum / float64(count),
+		perimetersSum / float64(count),
+		compactsSum / float64(count),
+		elongationsSum / float64(count),
+	}
 }
 
 func initClusters(dataset []Point, k int) []Cluster {
@@ -90,7 +104,12 @@ func RunKMeans(dataset []Point, k int) []Cluster {
 func PrepareDataset(objectsChars []characteristic.ObjectCharacteristic) []Point {
 	var dataset []Point
 	for _, o_ch := range objectsChars {
-		dataset = append(dataset, Point{float64(o_ch.Ch.Square), float64(o_ch.Ch.Perimeter)})
+		dataset = append(dataset, Point{
+			float64(o_ch.Ch.Square),
+			float64(o_ch.Ch.Perimeter),
+			o_ch.Ch.Compact,
+			o_ch.Ch.Elongation,
+		})
 	}
 	return dataset
 }

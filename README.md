@@ -1,6 +1,6 @@
 # k-means
 
-The k-means algorithm is a data clustering algorithm. The purpose of the clustering task is to divide a set of objects into clusters (classes) based on geometric and photometric objects features: 
+The k-means algorithm is a data clustering algorithm. The purpose of the clustering task is to divide a set of objects into clusters (classes) based on geometric and photometric features: 
 
 - area 
 - perimeter
@@ -37,7 +37,7 @@ the "horizontal“ neighbors, and on the second — on the ”vertical":
 
 The search result is an associative array, where the key is the object id, and the value is an array of coordinates of points of this object on a binary matrix.
 
-## 5. Calculation and of geometric characteristics and phonetic features
+## 5. Calculation and of geometric and photometric features
 
 Then, based on them, the dataset is filled in and
 clustering is performed with a given number of clusters `k`.

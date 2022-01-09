@@ -12,7 +12,7 @@ The k-means algorithm is a data clustering algorithm. The purpose of the cluster
 
 # How it works
 
-## 1. Original image
+## 1. The original image
 
 ![original](https://github.com/Konstantsiy/k-means/blob/master/images/5.jpg)
 
